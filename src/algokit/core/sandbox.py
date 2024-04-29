@@ -14,7 +14,8 @@ from algokit.core.proc import RunResult, run, run_interactive
 
 logger = logging.getLogger(__name__)
 
-DOCKER_COMPOSE_MINIMUM_VERSION = "2.5.0"
+# DOCKER_COMPOSE_MINIMUM_VERSION = "2.5.0"
+DOCKER_COMPOSE_MINIMUM_VERSION = "1.0.5"
 DEFAULT_NAME = "sandbox"
 
 
@@ -55,7 +56,9 @@ class ComposeSandbox:
     @classmethod
     def from_environment(cls) -> ComposeSandbox | None:
         run_results = run(
-            ["docker", "compose", "ls", "--format", "json", "--filter", "name=algokit_sandbox*"],
+            [
+                "ls",
+            ],
             bad_return_code_error_message="Failed to list running LocalNet",
         )
         if run_results.exit_code != 0:
@@ -66,7 +69,9 @@ class ComposeSandbox:
                 config_file = item.get("ConfigFiles").split(",")[0]
                 full_name = Path(config_file).parent.name
                 name = (
-                    full_name.replace(f"{DEFAULT_NAME}_", "") if full_name.startswith(f"{DEFAULT_NAME}_") else full_name
+                    full_name.replace(f"{DEFAULT_NAME}_", "")
+                    if full_name.startswith(f"{DEFAULT_NAME}_")
+                    else full_name
                 )
                 return cls(name)
             return None
@@ -78,7 +83,9 @@ class ComposeSandbox:
         try:
             compose_content = self.compose_file_path.read_text()
             config_content = self.algod_config_file_path.read_text()
-            algod_network_template_content = self.algod_network_template_file_path.read_text()
+            algod_network_template_content = (
+                self.algod_network_template_file_path.read_text()
+            )
         except FileNotFoundError:
             # treat as out of date if compose file exists but algod config doesn't
             # so that existing setups aren't suddenly reset
@@ -89,7 +96,8 @@ class ComposeSandbox:
             if (
                 compose_content == self._latest_yaml
                 and config_content == self._latest_config_json
-                and algod_network_template_content == self._latest_algod_network_template
+                and algod_network_template_content
+                == self._latest_algod_network_template
             ):
                 return ComposeFileStatus.UP_TO_DATE
             else:
@@ -99,7 +107,9 @@ class ComposeSandbox:
         self.conduit_file_path.write_text(self._conduit_yaml)
         self.compose_file_path.write_text(self._latest_yaml)
         self.algod_config_file_path.write_text(self._latest_config_json)
-        self.algod_network_template_file_path.write_text(self._latest_algod_network_template)
+        self.algod_network_template_file_path.write_text(
+            self._latest_algod_network_template
+        )
 
     def _run_compose_command(
         self,
@@ -108,7 +118,7 @@ class ComposeSandbox:
         bad_return_code_error_message: str | None = None,
     ) -> RunResult:
         return run(
-            ["docker", "compose", *compose_args.split()],
+            ["podman-compose", *compose_args.split()],
             cwd=self.directory,
             stdout_log_level=stdout_log_level,
             bad_return_code_error_message=bad_return_code_error_message,
@@ -117,18 +127,29 @@ class ComposeSandbox:
     def up(self) -> None:
         logger.info("Starting AlgoKit LocalNet now...")
         self._run_compose_command(
-            "up --detach --quiet-pull --wait", bad_return_code_error_message="Failed to start LocalNet"
+            # "up --detach --quiet-pull --wait",
+            # "up --detach --quiet-pull",
+            "up --detach --quiet-pull --force-recreate",
+            bad_return_code_error_message="Failed to start LocalNet",
         )
         logger.debug("AlgoKit LocalNet started, waiting for health check")
         if _wait_for_algod():
-            logger.info("Started; execute `algokit explore` to explore LocalNet in a web user interface.")
+            logger.info(
+                "Started; execute `algokit explore` to explore LocalNet in a web user interface."
+            )
         else:
-            logger.warning("AlgoKit LocalNet failed to return a successful health check")
+            logger.warning(
+                "AlgoKit LocalNet failed to return a successful health check"
+            )
 
     def stop(self) -> None:
         logger.info("Stopping AlgoKit LocalNet now...")
-        self._run_compose_command("stop", bad_return_code_error_message="Failed to stop LocalNet")
-        logger.info("LocalNet Stopped; execute `algokit localnet start` to start it again.")
+        self._run_compose_command(
+            "stop", bad_return_code_error_message="Failed to stop LocalNet"
+        )
+        logger.info(
+            "LocalNet Stopped; execute `algokit localnet start` to start it again."
+        )
 
     def down(self) -> None:
         logger.info("Cleaning up the running AlgoKit LocalNet...")
@@ -138,7 +159,9 @@ class ComposeSandbox:
         logger.info("Fetching any container updates from DockerHub...")
         self._run_compose_command("pull --ignore-pull-failures --quiet")
 
-    def logs(self, *, follow: bool = False, no_color: bool = False, tail: str | None = None) -> None:
+    def logs(
+        self, *, follow: bool = False, no_color: bool = False, tail: str | None = None
+    ) -> None:
         compose_args = ["logs"]
         if follow:
             compose_args += ["--follow"]
@@ -164,7 +187,9 @@ class ComposeSandbox:
             data = json.loads(run_results.output)
         # `docker compose ps --format json` on version >= 2.21.0 outputs seperate JSON objects, each on a new line
         else:
-            data = [json.loads(line) for line in run_results.output.splitlines() if line]
+            data = [
+                json.loads(line) for line in run_results.output.splitlines() if line
+            ]
 
         assert isinstance(data, list)
         return cast(list[dict[str, Any]], data)
@@ -203,7 +228,11 @@ class ComposeSandbox:
     def is_image_up_to_date(self, image_name: str) -> bool:
         local_version = self._get_local_image_version(image_name)
         latest_version = self._get_latest_image_version(image_name)
-        return local_version is None or latest_version is None or local_version == latest_version
+        return (
+            local_version is None
+            or latest_version is None
+            or local_version == latest_version
+        )
 
     def check_docker_compose_for_new_image_versions(self) -> None:
         is_indexer_up_to_date = self.is_image_up_to_date(INDEXER_IMAGE)
@@ -237,7 +266,9 @@ def _wait_for_algod() -> bool:
     while time.time() < end_time:
         try:
             health = httpx.get(
-                ALGOD_HEALTH_URL, timeout=DEFAULT_HEALTH_TIMEOUT, headers={"X-Algo-API-Token": DEFAULT_ALGOD_TOKEN}
+                ALGOD_HEALTH_URL,
+                timeout=DEFAULT_HEALTH_TIMEOUT,
+                headers={"X-Algo-API-Token": DEFAULT_ALGOD_TOKEN},
             )
         except httpx.RequestError as ex:
             last_exception = ex
@@ -245,7 +276,9 @@ def _wait_for_algod() -> bool:
             if health.is_success:
                 logger.debug("AlgoKit LocalNet health check successful, algod is ready")
                 return True
-            logger.debug(f"AlgoKit LocalNet health check returned {health.status_code}, waiting")
+            logger.debug(
+                f"AlgoKit LocalNet health check returned {health.status_code}, waiting"
+            )
         time.sleep(DEFAULT_HEALTH_TIMEOUT)
     if last_exception:
         logger.debug("AlgoKit LocalNet health request failed", exc_info=last_exception)
@@ -452,7 +485,10 @@ def fetch_algod_status_data(service_info: dict[str, Any]) -> dict[str, Any]:
     try:
         # Docker image response
         # Search for DEFAULT_ALGOD_PORT in ports, if found use it, if not found this is an error
-        if not any(item["PublishedPort"] == DEFAULT_ALGOD_PORT for item in service_info["Publishers"]):
+        if not any(
+            item["PublishedPort"] == DEFAULT_ALGOD_PORT
+            for item in service_info["Publishers"]
+        ):
             return {"Status": "Error"}
 
         results["Port"] = DEFAULT_ALGOD_PORT
@@ -460,10 +496,14 @@ def fetch_algod_status_data(service_info: dict[str, Any]) -> dict[str, Any]:
         with httpx.Client() as client:
             algod_headers = {"X-Algo-API-Token": DEFAULT_ALGOD_TOKEN}
             http_status_response = client.get(
-                f"{DEFAULT_ALGOD_SERVER}:{DEFAULT_ALGOD_PORT}/v2/status", headers=algod_headers, timeout=3
+                f"{DEFAULT_ALGOD_SERVER}:{DEFAULT_ALGOD_PORT}/v2/status",
+                headers=algod_headers,
+                timeout=3,
             )
             http_versions_response = client.get(
-                f"{DEFAULT_ALGOD_SERVER}:{DEFAULT_ALGOD_PORT}/versions", headers=algod_headers, timeout=3
+                f"{DEFAULT_ALGOD_SERVER}:{DEFAULT_ALGOD_PORT}/versions",
+                headers=algod_headers,
+                timeout=3,
             )
             if (
                 http_status_response.status_code != httpx.codes.OK
@@ -474,7 +514,9 @@ def fetch_algod_status_data(service_info: dict[str, Any]) -> dict[str, Any]:
             # status response
             status_response = http_status_response.json()
             results["Last round"] = status_response["last-round"]
-            results["Time since last round"] = "%.1fs" % (status_response["time-since-last-round"] / 1e9)
+            results["Time since last round"] = "%.1fs" % (
+                status_response["time-since-last-round"] / 1e9
+            )
             # genesis response
             genesis_response = http_versions_response.json()
             results["Genesis ID"] = genesis_response["genesis_id"]
@@ -493,7 +535,10 @@ def fetch_indexer_status_data(service_info: dict[str, Any]) -> dict[str, Any]:
     results: dict[str, Any] = {}
     try:
         # Docker image response
-        if not any(item["PublishedPort"] == DEFAULT_INDEXER_PORT for item in service_info["Publishers"]):
+        if not any(
+            item["PublishedPort"] == DEFAULT_INDEXER_PORT
+            for item in service_info["Publishers"]
+        ):
             return {"Status": "Error"}
 
         results["Port"] = service_info["Publishers"][0]["PublishedPort"]
@@ -514,4 +559,4 @@ def fetch_indexer_status_data(service_info: dict[str, Any]) -> dict[str, Any]:
         return {"Status": "Error"}
 
 
-DOCKER_COMPOSE_VERSION_COMMAND = ["docker", "compose", "version", "--format", "json"]
+DOCKER_COMPOSE_VERSION_COMMAND = ["podman-compose", "version", "--format", "json"]
