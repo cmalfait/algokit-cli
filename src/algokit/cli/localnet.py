@@ -38,7 +38,9 @@ def localnet_group() -> None:
 
     try:
         compose_version_str = extract_version_triple(compose_version_result.output)
-        compose_version_ok = is_minimum_version(compose_version_str, DOCKER_COMPOSE_MINIMUM_VERSION)
+        compose_version_ok = is_minimum_version(
+            compose_version_str, DOCKER_COMPOSE_MINIMUM_VERSION
+        )
     except Exception:
         logger.warning(
             "Unable to extract docker compose version from output: \n"
@@ -54,7 +56,10 @@ def localnet_group() -> None:
                 "Please update your Docker install"
             )
 
-    proc.run(["docker", "version"], bad_return_code_error_message="Docker engine isn't running; please start it.")
+    proc.run(
+        ["docker", "version"],
+        bad_return_code_error_message="Docker engine isn't running; please start it.",
+    )
 
 
 @localnet_group.command("start", short_help="Start the AlgoKit LocalNet.")
@@ -72,15 +77,22 @@ def start_localnet(name: str | None) -> None:
     full_name = f"{DEFAULT_NAME}_{name}" if name is not None else DEFAULT_NAME
     if sandbox is not None and full_name != sandbox.name:
         logger.debug("LocalNet is already running.")
-        if click.confirm("This will stop any running AlgoKit LocalNet instance. Are you sure?", default=True):
+        if click.confirm(
+            "This will stop any running AlgoKit LocalNet instance. Are you sure?",
+            default=True,
+        ):
             sandbox.stop()
         else:
-            raise click.ClickException("LocalNet is already running. Please stop it first")
+            raise click.ClickException(
+                "LocalNet is already running. Please stop it first"
+            )
     sandbox = ComposeSandbox() if name is None else ComposeSandbox(name)
     compose_file_status = sandbox.compose_file_status()
     sandbox.check_docker_compose_for_new_image_versions()
     if compose_file_status is ComposeFileStatus.MISSING:
-        logger.debug("LocalNet compose file does not exist yet; writing it out for the first time")
+        logger.debug(
+            "LocalNet compose file does not exist yet; writing it out for the first time"
+        )
         sandbox.write_compose_file()
         if name is not None:
             logger.info(
@@ -91,7 +103,9 @@ def start_localnet(name: str | None) -> None:
     elif compose_file_status is ComposeFileStatus.UP_TO_DATE:
         logger.debug("LocalNet compose file does not require updating")
     elif compose_file_status is ComposeFileStatus.OUT_OF_DATE and name is None:
-        logger.warning("LocalNet definition is out of date; please run `algokit localnet reset`")
+        logger.warning(
+            "LocalNet definition is out of date; please run `algokit localnet reset`"
+        )
     if name is not None:
         logger.info(
             "A named LocalNet is running, update checks are disabled. If you wish to synchronize with the latest "
@@ -108,7 +122,9 @@ def stop_localnet() -> None:
         if compose_file_status is not ComposeFileStatus.MISSING:
             sandbox.stop()
     else:
-        logger.debug("LocalNet is not running; run `algokit localnet start` to start the AlgoKit LocalNet")
+        logger.debug(
+            "LocalNet is not running; run `algokit localnet start` to start the AlgoKit LocalNet"
+        )
 
 
 @localnet_group.command("reset", short_help="Reset the AlgoKit LocalNet.")
@@ -154,7 +170,9 @@ def reset_localnet(*, update: bool) -> None:
 SERVICE_NAMES = ("algod", "conduit", "indexer-db", "indexer")
 
 
-@localnet_group.command("status", short_help="Check the status of the AlgoKit LocalNet.")
+@localnet_group.command(
+    "status", short_help="Check the status of the AlgoKit LocalNet."
+)
 def localnet_status() -> None:
     sandbox = ComposeSandbox.from_environment()
     if sandbox is None:
@@ -164,10 +182,16 @@ def localnet_status() -> None:
     # if any of the required containers does not exist (ie it's not just stopped but hasn't even been created),
     # then they will be missing from the output dictionary
     if set(SERVICE_NAMES) != ps_by_name.keys():
-        raise click.ClickException("LocalNet has not been initialized yet, please run 'algokit localnet start'")
+        raise click.ClickException(
+            "LocalNet has not been initialized yet, please run 'algokit localnet start'"
+        )
     # initialise output dict by setting status
     output_by_name = {
-        name: {"Status": "Running" if ps_by_name[name]["State"] == "running" else "Not running"}
+        name: {
+            "Status": (
+                "Running" if ps_by_name[name]["State"] == "running" else "Not running"
+            )
+        }
         for name in SERVICE_NAMES
     }
     # fill out remaining output_by_name["algod"] values
@@ -175,7 +199,9 @@ def localnet_status() -> None:
         output_by_name["algod"].update(fetch_algod_status_data(ps_by_name["algod"]))
     # fill out remaining output_by_name["indexer"] values
     if output_by_name["indexer"]["Status"] == "Running":
-        output_by_name["indexer"].update(fetch_indexer_status_data(ps_by_name["indexer"]))
+        output_by_name["indexer"].update(
+            fetch_indexer_status_data(ps_by_name["indexer"])
+        )
 
     # Print the status details
     for service_name, service_info in output_by_name.items():
@@ -200,7 +226,9 @@ def localnet_console(context: click.Context) -> None:
     context.invoke(goal_command, console=True)
 
 
-@localnet_group.command("explore", short_help="Explore the AlgoKit LocalNet using Dappflow")
+@localnet_group.command(
+    "explore", short_help="Explore the AlgoKit LocalNet using Dappflow"
+)
 @click.pass_context
 def localnet_explore(context: click.Context) -> None:
     context.invoke(explore_command)
